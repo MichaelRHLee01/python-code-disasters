@@ -1,246 +1,170 @@
 import random
-from models import Player, Field, Ship
-from restrictions import CheckSurround, BorderRestriction
 
+SIZE = 5
 
-class AI(Player):
-    def __init__(self, turn):
-        super(AI, self).__init__(turn)
-        self.name = 'A.I.'
+EMPTY = '.'
+SHIP = 'X'
+HIT = '*'
+MISS = 'O'
 
-    def placing_ships_on_the_field(self, size):
-        """
-        With this method computer places ships on the game field
-        :param size: size of the ship
-        """
-        old_field = list(self.field)
-        upd_field = list(self.field)
+class Board:
+    def __init__(self):
+        self.board = [[EMPTY] * SIZE for _ in range(SIZE)]
+        self.ships = []
 
-        def place_ship(fld, cur_fld, trn):
-            current_ship_position = set([place for place in range(
-                len(fld)) if fld[place] == '&'])
-            forb_places = CheckSurround(fld).forbid_placement()
-            forb_places_upd = [place for place in forb_places
-                               if cur_fld[place] == trn]
-            if len(forb_places_upd) == 0:
-                for position in current_ship_position:
-                    cur_fld[position] = trn
-                self.ships_alive.append(list(current_ship_position))
-                return True
+    def place_ship(self, ship_size, x, y, direction):
+        """Размещаем корабль на поле."""
+        if direction == 'H': 
+            for i in range(ship_size):
+                self.board[y][x + i] = SHIP
+        elif direction == 'V': 
+            for i in range(ship_size):
+                self.board[y + i][x] = SHIP
+        self.ships.append((ship_size, x, y, direction))
 
-        commands = {'w': Ship(size).move_up,
-                    'd': Ship(size).move_right,
-                    's': Ship(size).move_down,
-                    'a': Ship(size).move_left,
-                    'r': Ship(size).rotate_ship,
-                    'p': place_ship}
-        while True:
-            Ship(size).place_ship(old_field, upd_field)
-            upd_field, old_field = list(self.field), upd_field
-            attempts = 0
-            randoms = random.randint(1, 50)
-            try:
-                while attempts != randoms:
-                    commands[random.choice(('w', 'd', 's',
-                                            'a', 'r'))](old_field, upd_field)
-                    if BorderRestriction(upd_field).forbid_of_cross_border():
-                        upd_field = list(self.field)
-                        continue
-                    upd_field, old_field = list(self.field), upd_field
-                    attempts += 1
-                if commands['p'](old_field, self.field, self.turn):
-                    break
+    def print_board(self, show_ships=False):
+        """Выводим поле на экран."""
+        print("  " + " ".join([str(i) for i in range(SIZE)]))
+        for y in range(SIZE):
+            row = str(y) + " "
+            for x in range(SIZE):
+                if show_ships and self.board[y][x] == SHIP:
+                    row += SHIP + " "
                 else:
-                    continue
-            except IndexError:
-                upd_field = list(self.field)
-                continue
+                    row += self.board[y][x] + " "
+            print(row)
 
-    def shooting(self):
-        """
-        Method marks the field:
-        'o' - miss
-        'x' - hit the target
-        """
-        wounded_ships = [deck for deck in range(len(
-            self.opponent.field)) if self.opponent.field[deck] == 'x' and
-                         self.opponent.field[deck] not in self.ships_hit]
-        if len(wounded_ships) == 1:
-            while True:
-                shot = random.choice(list(
-                    AI.shooting_area(wounded_ships)))
-                if self.opponent.field[shot] == self.opponent.turn:
-                    self.opponent.field[shot] = 'x'
-                    break
-                elif self.opponent.field[shot] is None:
-                    self.opponent.field[shot] = 'o'
-                    break
+    def is_game_over(self):
+        """Проверяем, остались ли корабли на поле."""
+        for row in self.board:
+            if SHIP in row:
+                return False
+        return True
+
+    def make_move(self, x, y):
+        """Делаем ход, проверяя попадание в корабль."""
+        if self.board[y][x] == SHIP:
+            self.board[y][x] = HIT
+            return True
+        elif self.board[y][x] == EMPTY:
+            self.board[y][x] = MISS
+            return False
+        return None
+
+class Game:
+    def __init__(self):
+        self.player_board = Board()
+        self.computer_board = Board()
+        self.computer_visible_board = Board()
+
+    def place_computer_ships(self):
+        """Размещаем корабли компьютера случайным образом."""
+        ships = [3, 2, 2, 1, 1]  
+        for ship_size in ships:
+            placed = False
+            while not placed:
+                direction = random.choice(['H', 'V'])
+                x = random.randint(0, SIZE - 1)
+                y = random.randint(0, SIZE - 1)
+                if direction == 'H' and x + ship_size <= SIZE:
+                    placed = True
+                    for i in range(ship_size):
+                        if self.computer_board.board[y][x + i] == SHIP:
+                            placed = False
+                            break
+                    if placed:
+                        self.computer_board.place_ship(ship_size, x, y, direction)
+                elif direction == 'V' and y + ship_size <= SIZE:
+                    placed = True
+                    for i in range(ship_size):
+                        if self.computer_board.board[y + i][x] == SHIP:
+                            placed = False
+                            break
+                    if placed:
+                        self.computer_board.place_ship(ship_size, x, y, direction)
+
+    def place_player_ships(self):
+        """Пользователь размещает свои корабли вручную."""
+        ships = [3, 2, 2, 1, 1]
+        for ship_size in ships:
+            placed = False
+            while not placed:
+                print(f"Размещение корабля размером {ship_size}")
+                self.player_board.print_board(show_ships=True)
+                x, y, direction = self.get_player_input()
+                if self.is_valid_move(x, y, direction, ship_size, self.player_board):
+                    self.player_board.place_ship(ship_size, x, y, direction)
+                    placed = True
                 else:
-                    continue
-        elif len(wounded_ships) > 1:
-            if self.opponent.field[wounded_ships[-1] - 1] == 'x':
-                while True:
-                    shot = random.choice(list(
-                        AI.horizontal_shooting_area(wounded_ships)))
-                    if self.opponent.field[shot] == self.opponent.turn:
-                        self.opponent.field[shot] = 'x'
-                        break
-                    elif self.opponent.field[shot] is None:
-                        self.opponent.field[shot] = 'o'
-                        break
-                    else:
-                        continue
-            else:
-                while True:
-                    shot = random.choice(list(
-                        AI.upright_shooting_area(wounded_ships)))
-                    if self.opponent.field[shot] == self.opponent.turn:
-                        self.opponent.field[shot] = 'x'
-                        break
-                    elif self.opponent.field[shot] is None:
-                        self.opponent.field[shot] = 'o'
-                        break
-                    else:
-                        continue
+                    print("Некорректный ход, попробуйте снова.")
+
+    def get_player_input(self):
+        """Получаем ввод от игрока."""
+        x = int(input("Введите координату X: "))
+        y = int(input("Введите координату Y: "))
+        direction = input("Введите направление (H - горизонтально, V - вертикально): ").upper()
+        return x, y, direction
+
+    def is_valid_move(self, x, y, direction, ship_size, board):
+        """Проверяем, можно ли разместить корабль на данном месте."""
+        if direction == 'H':
+            if x + ship_size > SIZE:
+                return False
+            for i in range(ship_size):
+                if board.board[y][x + i] == SHIP:
+                    return False
+        elif direction == 'V':
+            if y + ship_size > SIZE:
+                return False
+            for i in range(ship_size):
+                if board.board[y + i][x] == SHIP:
+                    return False
+        return True
+
+    def player_turn(self):
+        """Ход игрока."""
+        print("Ход игрока")
+        self.computer_visible_board.print_board(show_ships=False)
+        x, y = self.get_player_input_for_attack()
+        hit = self.computer_board.make_move(x, y)
+        if hit:
+            print("Попадание!")
         else:
-            available_to_shoot = random.choice([pos for pos in range(
-                len(self.opponent.field)) if self.opponent.field[pos] != 'o'])
-            if self.opponent.field[available_to_shoot] == self.opponent.turn:
-                self.opponent.field[available_to_shoot] = 'x'
-            else:
-                self.opponent.field[available_to_shoot] = 'o'
+            print("Мимо!")
 
-    @staticmethod
-    def shooting_area(ship_position):
-        """
-        If computer hit the target this method defies the area there it will
-        tries to hit the next target
-        :param ship_position: current hit ship position in the list
-        """
-        set_of_pos = set()
-        for place in ship_position:
-            if place in Field.r_upper_corner:
-                set_of_pos.update({place - 1},
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.r_bottom_corner:
-                set_of_pos.update({place - 1},
-                                  {place - Field.num_of_lines}
-                                  )
-            elif place in Field.l_upper_corner:
-                set_of_pos.update({place + 1},
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.l_bottom_corner:
-                set_of_pos.update({place + 1},
-                                  {place - Field.num_of_lines}
-                                  )
-            elif place in Field.right_border:
-                set_of_pos.update({place - 1},
-                                  {place - Field.num_of_lines},
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.left_border:
-                set_of_pos.update({place + 1},
-                                  {place - Field.num_of_lines},
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.upper_border:
-                set_of_pos.update({place + 1},
-                                  {place - 1},
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.bottom_border:
-                set_of_pos.update({place + 1},
-                                  {place - 1},
-                                  {place - Field.num_of_lines}
-                                  )
-            else:
-                set_of_pos.update({place + 1},
-                                  {place - 1},
-                                  {place - Field.num_of_lines},
-                                  {place + Field.num_of_lines}
-                                  )
-        return set_of_pos
+    def computer_turn(self):
+        """Ход компьютера."""
+        print("Ход компьютера")
+        x = random.randint(0, SIZE - 1)
+        y = random.randint(0, SIZE - 1)
+        print(f"Компьютер атакует {x}, {y}")
+        hit = self.player_board.make_move(x, y)
+        if hit:
+            print("Компьютер попал!")
+        else:
+            print("Компьютер промахнулся.")
 
-    @staticmethod
-    def horizontal_shooting_area(ship_position):
-        """
-        If computer hit the target this method defies the area there it will
-        tries to hit the next target (horizontally)
-        :param ship_position: current hit ship position in the list
-        """
-        set_of_pos = set()
-        for place in ship_position:
-            if place in Field.r_upper_corner:
-                set_of_pos.update({place - 1})
-            elif place in Field.r_bottom_corner:
-                set_of_pos.update({place - 1})
-            elif place in Field.l_upper_corner:
-                set_of_pos.update({place + 1})
-            elif place in Field.l_bottom_corner:
-                set_of_pos.update({place + 1})
-            elif place in Field.right_border:
-                set_of_pos.update({place - 1})
-            elif place in Field.left_border:
-                set_of_pos.update({place + 1})
-            elif place in Field.upper_border:
-                set_of_pos.update({place + 1},
-                                  {place - 1})
-            elif place in Field.bottom_border:
-                set_of_pos.update({place + 1},
-                                  {place - 1})
-            else:
-                set_of_pos.update({place + 1},
-                                  {place - 1})
-        return set_of_pos
+    def get_player_input_for_attack(self):
+        """Получаем координаты для атаки от игрока."""
+        x = int(input("Введите координату X для атаки: "))
+        y = int(input("Введите координату Y для атаки: "))
+        return x, y
 
-    @staticmethod
-    def upright_shooting_area(ship_position):
-        """
-        If computer hit the target this method defies the area there it will
-        tries to hit the next target (upright)
-        :param ship_position: current hit ship position in the list
-        """
-        set_of_pos = set()
-        for place in ship_position:
-            if place in Field.r_upper_corner:
-                set_of_pos.update(
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.r_bottom_corner:
-                set_of_pos.update(
-                                  {place - Field.num_of_lines}
-                                  )
-            elif place in Field.l_upper_corner:
-                set_of_pos.update(
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.l_bottom_corner:
-                set_of_pos.update(
-                                  {place - Field.num_of_lines}
-                                  )
-            elif place in Field.right_border:
-                set_of_pos.update(
-                                  {place - Field.num_of_lines},
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.left_border:
-                set_of_pos.update(
-                                  {place + Field.num_of_lines},
-                                  {place - Field.num_of_lines}
-                                  )
-            elif place in Field.upper_border:
-                set_of_pos.update(
-                                  {place + Field.num_of_lines}
-                                  )
-            elif place in Field.bottom_border:
-                set_of_pos.update(
-                                  {place - Field.num_of_lines}
-                                  )
-            else:
-                set_of_pos.update(
-                                  {place - Field.num_of_lines},
-                                  {place + Field.num_of_lines}
-                                  )
-        return set_of_pos
+    def play(self):
+        """Запуск игры."""
+        self.place_computer_ships()
+        self.place_player_ships()
+
+        while True:
+            self.player_turn()
+            if self.computer_board.is_game_over():
+                print("Вы выиграли!")
+                break
+            self.computer_turn()
+            if self.player_board.is_game_over():
+                print("Вы проиграли!")
+                break
+
+if __name__ == "__main__":
+    game = Game()
+    game.play()
