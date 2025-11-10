@@ -11,9 +11,41 @@ node {
   }
   
   stage('Quality Gate') {
-    echo "SonarQube analysis completed - checking results via API"
-    echo "View results at: http://34.30.30.30:9000/dashboard?id=python-code-disasters"
+    script {
+        echo "Waiting for SonarQube quality gate..."
+
+        try {
+            timeout(time: 2, unit: 'MINUTES') {
+                def qg = waitForQualityGate()
+                env.QUALITY_GATE_STATUS = qg.status
+                echo "Quality gate result via webhook: ${env.QUALITY_GATE_STATUS}"
+            }
+        } catch (e) {
+            echo "Webhook didn't report in time. Falling back to polling..."
+
+            // Poll Sonar directly until status not PENDING
+            for (int i = 0; i < 10; i++) {
+                def status = sh(
+                    script: "curl -s -u admin:!Sonarqube123 'http://34.30.30.30:9000/api/qualitygates/project_status?projectKey=python-code-disasters' | jq -r '.projectStatus.status'",
+                    returnStdout: true
+                ).trim()
+
+                if (status != "PENDING") {
+                    env.QUALITY_GATE_STATUS = status
+                    break
+                }
+                sleep 10
+            }
+
+            if (!env.QUALITY_GATE_STATUS) {
+                error "Could not retrieve quality gate status"
+            }
+
+            echo "Quality gate result via fallback: ${env.QUALITY_GATE_STATUS}"
+        }
+    }
   }
+
   
   stage('Check Blockers') {
     script {
@@ -24,11 +56,12 @@ node {
       sleep(time: 10, unit: 'SECONDS')
       
       def blockerCount = sh(
-        script: """curl -s -u admin:!Sonarqube123 '${sonarUrl}/api/issues/search?componentKeys=${projectKey}&severities=BLOCKER&resolved=false' | grep -m1 -o '"total":[0-9]*' | cut -d':' -f2""",
+        script: """
+          curl -s -u admin:!Sonarqube123 '${sonarUrl}/api/issues/search?componentKeys=${projectKey}&severities=BLOCKER&resolved=false' \
+          | grep -o '"total":[0-9]*' | head -n1 | cut -d':' -f2
+        """,
         returnStdout: true
       ).trim()
-
-
       
       env.BLOCKER_COUNT = blockerCount ?: '0'
       
