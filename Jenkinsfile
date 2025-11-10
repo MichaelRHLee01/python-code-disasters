@@ -19,7 +19,6 @@ node {
   
   stage('Check Blockers') {
     script {
-      // Query SonarQube API for blocker count
       def sonarUrl = 'http://34.30.30.30:9000'
       def projectKey = 'python-code-disasters'
       
@@ -50,11 +49,12 @@ node {
         echo "✅ No blockers detected - executing Hadoop job"
         
         def repoUrl = 'https://github.com/MichaelRHLee01/python-code-disasters.git'
+        def podName = sh(script: "kubectl get pod -n jenkins -l app=jenkins -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
         
         try {
-          // Submit Hadoop job
+          // Submit Hadoop job via sidecar
           sh """
-            gcloud dataproc jobs submit pyspark \
+            kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gcloud dataproc jobs submit pyspark \
               gs://cmu-course-final-hadoop-scripts/line_counter.py \
               --cluster=hadoop-cluster \
               --region=us-central1 \
@@ -66,7 +66,7 @@ node {
           
           // Fetch results
           def results = sh(
-            script: 'gsutil cat gs://cmu-course-final-hadoop-output/line-counts-python-code-disasters/part-* | head -20',
+            script: "kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gsutil cat gs://cmu-course-final-hadoop-output/line-counts-python-code-disasters/part-* 2>/dev/null | head -20 || echo 'No results yet'",
             returnStdout: true
           ).trim()
           
