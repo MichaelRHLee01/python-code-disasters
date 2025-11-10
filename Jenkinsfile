@@ -12,39 +12,31 @@ node {
   
   stage('Quality Gate') {
     script {
-        echo "Waiting for SonarQube quality gate..."
+      echo "Polling SonarQube quality gate..."
 
-        try {
-            timeout(time: 2, unit: 'MINUTES') {
-                def qg = waitForQualityGate()
-                env.QUALITY_GATE_STATUS = qg.status
-                echo "Quality gate result via webhook: ${env.QUALITY_GATE_STATUS}"
-            }
-        } catch (e) {
-            echo "Webhook didn't report in time. Falling back to polling..."
+      def status = "PENDING"
+      for (int i = 0; i < 12; i++) {
+        status = sh(
+          script: "curl -s -u admin:!Sonarqube123 'http://34.30.30.30:9000/api/qualitygates/project_status?projectKey=python-code-disasters' | jq -r '.projectStatus.status'",
+          returnStdout: true
+        ).trim()
 
-            // Poll Sonar directly until status not PENDING
-            for (int i = 0; i < 10; i++) {
-                def status = sh(
-                    script: "curl -s -u admin:!Sonarqube123 'http://34.30.30.30:9000/api/qualitygates/project_status?projectKey=python-code-disasters' | jq -r '.projectStatus.status'",
-                    returnStdout: true
-                ).trim()
-
-                if (status != "PENDING") {
-                    env.QUALITY_GATE_STATUS = status
-                    break
-                }
-                sleep 10
-            }
-
-            if (!env.QUALITY_GATE_STATUS) {
-                error "Could not retrieve quality gate status"
-            }
-
-            echo "Quality gate result via fallback: ${env.QUALITY_GATE_STATUS}"
+        if (status != "PENDING") {
+          break
         }
+
+        sleep 10
+      }
+
+      env.QUALITY_GATE_STATUS = status
+      echo "Quality gate result: ${status}"
+      
+      if (status != "OK") {
+        currentBuild.result = 'FAILURE'
+      }
     }
   }
+
 
   
   stage('Check Blockers') {
