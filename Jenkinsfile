@@ -11,16 +11,17 @@ node {
   }
   
   stage('Quality Gate') {
-    timeout(time: 10, unit: 'MINUTES') {
-      def qg = waitForQualityGate()
-      env.QUALITY_GATE_STATUS = qg.status
-    }
+    echo "SonarQube analysis completed - checking results via API"
+    echo "View results at: http://34.30.30.30:9000/dashboard?id=python-code-disasters"
   }
   
   stage('Check Blockers') {
     script {
       def sonarUrl = 'http://34.30.30.30:9000'
       def projectKey = 'python-code-disasters'
+      
+      // Wait a bit for SonarQube to finish processing
+      sleep(time: 10, unit: 'SECONDS')
       
       def blockerCount = sh(
         script: """
@@ -52,7 +53,6 @@ node {
         def podName = sh(script: "kubectl get pod -n jenkins -l app=jenkins -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
         
         try {
-          // Submit Hadoop job via sidecar
           sh """
             kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gcloud dataproc jobs submit pyspark \
               gs://cmu-course-final-hadoop-scripts/line_counter.py \
@@ -64,7 +64,6 @@ node {
           
           echo "✅ Hadoop job completed successfully"
           
-          // Fetch results
           def results = sh(
             script: "kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gsutil cat gs://cmu-course-final-hadoop-output/line-counts-python-code-disasters/part-* 2>/dev/null | head -20 || echo 'No results yet'",
             returnStdout: true
@@ -80,7 +79,6 @@ node {
         }
       } else {
         echo "🚫 BLOCKERS FOUND (${env.BLOCKER_COUNT}) - Hadoop job SKIPPED"
-        echo "Fix blocker issues before deploying to production"
         echo "View issues at: http://34.30.30.30:9000/project/issues?id=python-code-disasters&resolved=false&severities=BLOCKER"
       }
     }
