@@ -41,8 +41,8 @@ node {
     }
   }
   
-  Replace the Hadoop Decision stage with:
-groovy  stage('Hadoop Decision') {
+  
+  stage('Hadoop Decision') {
     script {
       if (env.HAS_BLOCKERS == 'false') {
         echo "✅ No blockers - Executing Hadoop job"
