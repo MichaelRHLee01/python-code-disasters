@@ -49,8 +49,7 @@ node {
         echo "✅ No blockers detected - executing Hadoop job"
         
         def repoUrl = 'https://github.com/MichaelRHLee01/python-code-disasters.git'
-        def podName = sh(script: "kubectl get pod -n jenkins -l app=jenkins -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()
-        
+        def podName = sh(script: "/var/jenkins_home/kubectl get pod -n jenkins -l app=jenkins -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()        
         try {
           sh """
             kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gcloud dataproc jobs submit pyspark \
