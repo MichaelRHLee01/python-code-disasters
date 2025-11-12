@@ -1,21 +1,25 @@
-# Intentional security issues for testing
+# Critical security vulnerabilities
 
-# Blocker: Hardcoded credentials
-PASSWORD = "admin123"
-SECRET_KEY = "my-secret-key-12345"
-API_TOKEN = "sk-1234567890abcdef"
-DATABASE_PASSWORD = "root"
+# Using pickle with untrusted data
+import pickle
+def unsafe_unpickle(data):
+    return pickle.loads(data)
 
-# Blocker: SQL injection vulnerability
-def unsafe_query(user_input):
-    query = f"SELECT * FROM users WHERE name = '{user_input}'"
+# Hardcoded AWS credentials
+AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+AWS_SECRET_KEY = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+
+# SQL Injection
+def sql_injection(username):
+    query = "SELECT * FROM users WHERE username = '" + username + "'"
     return query
 
-# Blocker: Using eval
-def dangerous_eval(code):
-    return eval(code)
+# Command injection
+import subprocess
+def command_injection(filename):
+    subprocess.call("cat " + filename, shell=True)
 
-# Blocker: Command injection
-import os
-def run_command(cmd):
-    os.system(cmd)
+# Using MD5 for passwords
+import hashlib
+def weak_hash(password):
+    return hashlib.md5(password.encode()).hexdigest()
