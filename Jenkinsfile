@@ -23,10 +23,11 @@ node {
       
       def blockerCount = sh(
         script: """
-          curl -s -u admin:!Sonarqube123 '${sonarUrl}/api/issues/search?componentKeys=${projectKey}&severities=BLOCKER&resolved=false' | grep -o '"total":[0-9]*' | cut -d':' -f2
+          curl -s -u admin:!Sonarqube123 '${sonarUrl}/api/issues/search?componentKeys=${projectKey}&severities=BLOCKER&resolved=false' | grep -o '"total":[0-9]*' | cut -d':' -f2 | tr -d '\\n'
         """,
         returnStdout: true
       ).trim()
+
       
       env.BLOCKER_COUNT = blockerCount ?: '0'
       
