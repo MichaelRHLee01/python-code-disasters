@@ -47,7 +47,7 @@ node {
         echo "✅ No blockers - Executing Hadoop job"
         
         sh """
-          POD_NAME=\$(curl -s --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer \$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" https://kubernetes.default.svc/api/v1/namespaces/jenkins/pods?labelSelector=app%3Djenkins | grep -o '"name":"[^"]*' | head -1 | cut -d'"' -f4)
+          POD_NAME=jenkins-567866744d-tghbp
           
           curl -X POST --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer \$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" "https://kubernetes.default.svc/api/v1/namespaces/jenkins/pods/\${POD_NAME}/exec?container=gcloud-sidecar&command=gcloud&command=dataproc&command=jobs&command=submit&command=pyspark&command=gs://cmu-course-final-hadoop-scripts/line_counter.py&command=--cluster%3Dhadoop-cluster&command=--region%3Dus-central1&command=--project%3Dcmu-course-final&command=--&command=https://github.com/MichaelRHLee01/python-code-disasters.git&stdin=false&stdout=true&stderr=true"
         """
