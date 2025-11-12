@@ -41,30 +41,23 @@ node {
     }
   }
   
-  
-  stage('Hadoop Decision') {
+  stage('Hadoop MapReduce Job') {
     script {
       if (env.HAS_BLOCKERS == 'false') {
         echo "✅ No blockers - Executing Hadoop job"
         
-        def repoUrl = 'https://github.com/MichaelRHLee01/python-code-disasters.git'
-        def podName = 'jenkins-567866744d-tghbp'  // Hardcoded current pod
-        
         sh """
-          kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gcloud dataproc jobs submit pyspark \
-            gs://cmu-course-final-hadoop-scripts/line_counter.py \
-            --cluster=hadoop-cluster \
-            --region=us-central1 \
-            --project=cmu-course-final \
-            -- ${repoUrl}
+          POD_NAME=\$(curl -s --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer \$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" https://kubernetes.default.svc/api/v1/namespaces/jenkins/pods?labelSelector=app%3Djenkins | grep -o '"name":"[^"]*' | head -1 | cut -d'"' -f4)
+          
+          curl -X POST --cacert /var/run/secrets/kubernetes.io/serviceaccount/ca.crt -H "Authorization: Bearer \$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)" "https://kubernetes.default.svc/api/v1/namespaces/jenkins/pods/\${POD_NAME}/exec?container=gcloud-sidecar&command=gcloud&command=dataproc&command=jobs&command=submit&command=pyspark&command=gs://cmu-course-final-hadoop-scripts/line_counter.py&command=--cluster%3Dhadoop-cluster&command=--region%3Dus-central1&command=--project%3Dcmu-course-final&command=--&command=https://github.com/MichaelRHLee01/python-code-disasters.git&stdin=false&stdout=true&stderr=true"
         """
         
         echo "✅ Hadoop job completed"
         
       } else {
-        echo "🚫 BLOCKERS (${env.BLOCKER_COUNT}) - Skipping Hadoop"
+        echo "🚫 BLOCKERS FOUND (${env.BLOCKER_COUNT}) - Hadoop job SKIPPED"
+        echo "View issues at: http://34.30.30.30:9000/project/issues?id=python-code-disasters"
       }
     }
   }
-
 }
