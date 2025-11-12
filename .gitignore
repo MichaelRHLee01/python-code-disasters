@@ -100,5 +100,5 @@ docs/_build/
 # PyBuilder
 target/
 
-critical_bugs.py
+critical_bugs_2.py
 test_blocker_2.py
