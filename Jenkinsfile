@@ -41,23 +41,17 @@ node {
     }
   }
   
-  stage('Hadoop Decision') {
+  Replace the Hadoop Decision stage with:
+groovy  stage('Hadoop Decision') {
     script {
       if (env.HAS_BLOCKERS == 'false') {
         echo "✅ No blockers - Executing Hadoop job"
         
         def repoUrl = 'https://github.com/MichaelRHLee01/python-code-disasters.git'
-        
-        // Get current pod name dynamically
-        def podName = sh(
-          script: "/var/jenkins_home/kubectl get pod -n jenkins -l app=jenkins -o jsonpath='{.items[0].metadata.name}'",
-          returnStdout: true
-        ).trim()
-        
-        echo "Using pod: ${podName}"
+        def podName = 'jenkins-567866744d-tghbp'  // Hardcoded current pod
         
         sh """
-          /var/jenkins_home/kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gcloud dataproc jobs submit pyspark \
+          kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gcloud dataproc jobs submit pyspark \
             gs://cmu-course-final-hadoop-scripts/line_counter.py \
             --cluster=hadoop-cluster \
             --region=us-central1 \
@@ -72,4 +66,5 @@ node {
       }
     }
   }
+
 }
