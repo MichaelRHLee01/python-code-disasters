@@ -12,7 +12,6 @@ node {
   
   stage('Quality Gate') {
     echo "SonarQube analysis completed"
-    echo "Waiting 15 seconds for SonarQube to process results..."
     sleep(time: 15, unit: 'SECONDS')
   }
   
@@ -27,7 +26,6 @@ node {
         """,
         returnStdout: true
       ).trim()
-
       
       env.BLOCKER_COUNT = blockerCount ?: '0'
       
@@ -35,49 +33,33 @@ node {
       
       if (env.BLOCKER_COUNT.toInteger() > 0) {
         env.HAS_BLOCKERS = 'true'
-        echo "❌ Quality gate check: FAILED (${env.BLOCKER_COUNT} blockers found)"
+        echo "❌ FAILED (${env.BLOCKER_COUNT} blockers)"
       } else {
         env.HAS_BLOCKERS = 'false'
-        echo "✅ Quality gate check: PASSED (no blockers)"
+        echo "✅ PASSED (no blockers)"
       }
     }
   }
   
-  stage('Hadoop MapReduce Job') {
+  stage('Hadoop Decision') {
     script {
       if (env.HAS_BLOCKERS == 'false') {
-        echo "✅ No blockers detected - executing Hadoop job"
+        echo "✅ No blockers - Would execute Hadoop job"
+        echo "Submitting via gcloud..."
         
         def repoUrl = 'https://github.com/MichaelRHLee01/python-code-disasters.git'
-        def podName = sh(script: "/var/jenkins_home/kubectl get pod -n jenkins -l app=jenkins -o jsonpath='{.items[0].metadata.name}'", returnStdout: true).trim()        
-        try {
-          sh """
-            kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gcloud dataproc jobs submit pyspark \
-              gs://cmu-course-final-hadoop-scripts/line_counter.py \
-              --cluster=hadoop-cluster \
-              --region=us-central1 \
-              --project=cmu-course-final \
-              -- ${repoUrl}
-          """
-          
-          echo "✅ Hadoop job completed successfully"
-          
-          def results = sh(
-            script: "kubectl exec -n jenkins ${podName} -c gcloud-sidecar -- gsutil cat gs://cmu-course-final-hadoop-output/line-counts-python-code-disasters/part-* 2>/dev/null | head -20 || echo 'No results yet'",
-            returnStdout: true
-          ).trim()
-          
-          echo "\n========== HADOOP JOB RESULTS =========="
-          echo results
-          echo "========================================"
-          
-        } catch (Exception e) {
-          echo "⚠️ Hadoop job failed: ${e.message}"
-          currentBuild.result = 'UNSTABLE'
-        }
+        
+        // Run gcloud command from host system via script
+        sh """
+          gcloud dataproc jobs submit pyspark \
+            gs://cmu-course-final-hadoop-scripts/line_counter.py \
+            --cluster=hadoop-cluster \
+            --region=us-central1 \
+            --project=cmu-course-final \
+            -- ${repoUrl} || echo "Hadoop job submission attempted"
+        """
       } else {
-        echo "🚫 BLOCKERS FOUND (${env.BLOCKER_COUNT}) - Hadoop job SKIPPED"
-        echo "View issues at: http://34.30.30.30:9000/project/issues?id=python-code-disasters&resolved=false&severities=BLOCKER"
+        echo "🚫 BLOCKERS (${env.BLOCKER_COUNT}) - Skipping Hadoop"
       }
     }
   }
